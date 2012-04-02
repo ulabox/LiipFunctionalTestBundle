@@ -46,6 +46,7 @@ abstract class WebTestCase extends BaseWebTestCase
     protected $kernelDir;
     // 5 * 1024 * 1024 KB
     protected $maxMemory = 5242880;
+    protected static $backup;
 
     /**
      * @var array
@@ -178,29 +179,28 @@ abstract class WebTestCase extends BaseWebTestCase
 
         if ('ORM' === $type) {
             $connection = $om->getConnection();
-            if ($connection->getDriver() instanceOf SqliteDriver) {
-                $params = $connection->getParams();
-                $name = isset($params['path']) ? $params['path'] : $params['dbname'];
 
-                $metadatas = $om->getMetadataFactory()->getAllMetadata();
+            $params = $connection->getParams();
+            $name = isset($params['path']) ? $params['path'] : $params['dbname'];
 
-                if ($container->getParameter('liip_functional_test.cache_sqlite_db')) {
-                    $backup = $container->getParameter('kernel.cache_dir') . '/test_' . md5(serialize($metadatas) . serialize($classNames)) . '.db';
-                    if (file_exists($backup)) {
-                        copy($backup, $name);
-                        return;
-                    }
+            $metadatas = $om->getMetadataFactory()->getAllMetadata();
+
+            if ($connection->getDriver() instanceOf SqliteDriver && $container->getParameter('liip_functional_test.cache_sqlite_db')) {
+                self::$backup = $container->getParameter('kernel.cache_dir') . '/test_' . md5(serialize($metadatas) . serialize($classNames)) . '.db';
+                if (file_exists(self::$backup)) {
+                    copy(self::$backup, $name);
+                    return;
                 }
-
-                // TODO: handle case when using persistent connections. Fail loudly?
-                $schemaTool = new SchemaTool($om);
-                $schemaTool->dropDatabase($name);
-                if (!empty($metadatas)) {
-                    $schemaTool->createSchema($metadatas);
-                }
-
-                $executor = new $executorClass($om);
             }
+
+            // TODO: handle case when using persistent connections. Fail loudly?
+            $schemaTool = new SchemaTool($om);
+            $schemaTool->dropDatabase($name);
+            if (!empty($metadatas)) {
+                $schemaTool->createSchema($metadatas);
+            }
+
+            $executor = new $executorClass($om);
         }
 
         if (empty($executor)) {
@@ -218,8 +218,8 @@ abstract class WebTestCase extends BaseWebTestCase
 
         $executor->execute($loader->getFixtures(), true);
 
-        if (isset($backup)) {
-            copy($name, $backup);
+        if (isset(self::$backup)) {
+            copy($name, self::$backup);
         }
 
         return $executor;
@@ -400,5 +400,16 @@ abstract class WebTestCase extends BaseWebTestCase
     {
         $this->firewallLogins[$firewallName] = $user;
         return $this;
+    }
+
+    /**
+     * Tear down method. Delete the backup db file to avoid reusing
+     * and old backup when executing the tests again
+     */
+    public static function tearDownAfterClass()
+    {
+        if(isset(self::$backup) && (file_exists(self::$backup))) {
+            unlink(self::$backup);
+        }
     }
 }
