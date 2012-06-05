@@ -50,14 +50,6 @@ abstract class WebTestCase extends BaseWebTestCase
     private $firewallLogins = array();
 
     /**
-     * Abstract method that should be defined in classes inheriting
-     * to set the static $backup property (backup filename). This DB is 
-     * stored after the fixtures are loaded, so we don't need to reload
-     * the fixtures after each test
-     */
-    static protected abstract function setBackup();
-
-    /**
      * Recover the backup filename
      *
      * @return string backup filename
@@ -426,7 +418,7 @@ abstract class WebTestCase extends BaseWebTestCase
     }
 
     /**
-     * Tear down method. Delete the backup db file to avoid reusing
+     * Set up before class method. Delete the backup db file to avoid reusing
      * and old backup when executing the tests again
      */
     public static function setUpBeforeClass()
