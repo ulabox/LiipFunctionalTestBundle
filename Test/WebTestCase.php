@@ -44,8 +44,8 @@ abstract class WebTestCase extends BaseWebTestCase
     protected $environment = 'test';
     protected $containers;
     protected $kernelDir;
-    // 5 * 1024 * 1024 KB
-    protected $maxMemory = 5242880;
+    protected $maxMemory = 5242880; // 5 * 1024 * 1024 KB
+    protected static $classes;
     protected static $backup;
 
     /**
@@ -156,10 +156,9 @@ abstract class WebTestCase extends BaseWebTestCase
      * Depends on the doctrine data-fixtures library being available in the
      * class path.
      *
-     * @param array $classNames List of fully qualified class names of fixtures to load
-     * @param string $omName The name of object manager to use
+     * @param string $omName       The name of object manager to use
      * @param string $registryName The service id of manager registry to use
-     * @param int $purgeMode Sets the ORM purge mode
+     * @param int    $purgeMode    Sets the ORM purge mode
      *
      * @return null|Doctrine\Common\DataFixtures\Executor\AbstractExecutor
      */
@@ -186,9 +185,9 @@ abstract class WebTestCase extends BaseWebTestCase
             $metadatas = $om->getMetadataFactory()->getAllMetadata();
 
             if ($connection->getDriver() instanceOf SqliteDriver && $container->getParameter('liip_functional_test.cache_sqlite_db')) {
-                self::$backup = $container->getParameter('kernel.cache_dir') . '/test_' . md5(serialize($metadatas) . serialize($classNames)) . '.db';
-                if (file_exists(self::$backup)) {
-                    copy(self::$backup, $name);
+                if (isset(static::$backup) && file_exists(static::$backup)) {
+                    copy(static::$backup, $name);
+
                     return;
                 }
             }
@@ -216,10 +215,17 @@ abstract class WebTestCase extends BaseWebTestCase
 
         $loader = $this->getFixtureLoader($container, $classNames);
 
-        $executor->execute($loader->getFixtures(), true);
+        try {
+            $executor->execute($loader->getFixtures(), true);
+        } catch (\Exception $e) {
+            echo 'Error executing fixtures: ' . $e->getMessage() . PHP_EOL;
+           // print_r($e->getTrace());
+            unlink($name);
+            exit();
+        }
 
-        if (isset(self::$backup)) {
-            copy($name, self::$backup);
+        if (isset(static::$backup)) {
+            copy($name, static::$backup);
         }
 
         return $executor;
@@ -229,7 +235,7 @@ abstract class WebTestCase extends BaseWebTestCase
      * Retrieve Doctrine DataFixtures loader.
      *
      * @param ContainerInterface $container
-     * @param array $classNames
+     * @param array              $classNames
      *
      * @return \Symfony\Bundle\DoctrineFixturesBundle\Common\DataFixtures\Loader
      */
@@ -250,7 +256,7 @@ abstract class WebTestCase extends BaseWebTestCase
      * Load a data fixture class.
      *
      * @param \Symfony\Bundle\DoctrineFixturesBundle\Common\DataFixtures\Loader $loader
-     * @param string $className
+     * @param string                                                            $className
      */
     protected function loadFixtureClass($loader, $className)
     {
@@ -298,7 +304,7 @@ abstract class WebTestCase extends BaseWebTestCase
             $client->getCookieJar()->set(new Cookie($options['name'], true));
 
             $session = self::$kernel->getContainer()->get('session');
-            foreach ($this->firewallLogins AS $firewallName => $user) {
+            foreach ($this->firewallLogins as $firewallName => $user) {
                 $token = new UsernamePasswordToken($user, null, $firewallName, $user->getRoles());
                 $session->set('_security_' . $firewallName, serialize($token));
             }
@@ -311,7 +317,8 @@ abstract class WebTestCase extends BaseWebTestCase
      * Extracts the location from the given route.
      *
      * @param string $route  The name of the route
-     * @param array $params  Set of parameters
+     * @param array  $params Set of parameters
+     *
      * @return string
      */
     protected function getUrl($route, $params = array())
@@ -323,7 +330,8 @@ abstract class WebTestCase extends BaseWebTestCase
      * Checks the success state of a response
      *
      * @param Response $response Response object
-     * @param bool $success to define whether the response is expected to be successful
+     * @param bool     $success  Success to define whether the response is expected to be successful
+     *
      * @return void
      */
     public function isSuccessful($response, $success = true, $type = 'text/html')
@@ -352,10 +360,11 @@ abstract class WebTestCase extends BaseWebTestCase
      *
      * This method also asserts the request was successful.
      *
-     * @param string $path path of the requested page
-     * @param string $method The HTTP method to use, defaults to GET
-     * @param bool $authentication Whether to use authentication, defaults to false
-     * @param bool $success to define whether the response is expected to be successful
+     * @param string $path           Path of the requested page
+     * @param string $method         The HTTP method to use, defaults to GET
+     * @param bool   $authentication Whether to use authentication, defaults to false
+     * @param bool   $success        Success to define whether the response is expected to be successful
+     *
      * @return string
      */
     public function fetchContent($path, $method = 'GET', $authentication = false, $success = true)
@@ -406,10 +415,10 @@ abstract class WebTestCase extends BaseWebTestCase
      * Tear down method. Delete the backup db file to avoid reusing
      * and old backup when executing the tests again
      */
-    public static function tearDownAfterClass()
+    public static function setUpBeforeClass()
     {
-        if(isset(self::$backup) && (file_exists(self::$backup))) {
-            unlink(self::$backup);
+        if(isset(static::$backup) && (file_exists(static::$backup))) {
+            unlink(static::$backup);
         }
     }
 }
