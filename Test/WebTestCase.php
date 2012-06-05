@@ -46,12 +46,26 @@ abstract class WebTestCase extends BaseWebTestCase
     protected $kernelDir;
     protected $maxMemory = 5242880; // 5 * 1024 * 1024 KB
     protected static $classes;
-    protected static $backup;
+    protected static $backup; // filename of the backup DB
+    private $firewallLogins = array();
 
     /**
-     * @var array
+     * Abstract method that should be defined in classes inheriting
+     * to set the static $backup property (backup filename). This DB is 
+     * stored after the fixtures are loaded, so we don't need to reload
+     * the fixtures after each test
      */
-    private $firewallLogins = array();
+    static protected abstract function setBackup();
+
+    /**
+     * Recover the backup filename
+     *
+     * @return string backup filename
+     */
+    static protected function getBackup()
+    {
+        return self::$backup;
+    }
 
     static protected function getKernelClass()
     {
